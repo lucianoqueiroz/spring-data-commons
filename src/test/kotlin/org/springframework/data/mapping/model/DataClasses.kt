@@ -31,3 +31,13 @@ data class ExtendedDataClassKt(val id: Long, val name: String) {
 data class SingleSettableProperty constructor(val id: UUID = UUID.randomUUID()) {
 	val version: Int? = null
 }
+
+fun delegatedProperties(name: String) = object : DelegatedInterface {
+	override var name = name
+}
+
+class DelegatedClassKt(var id: Long, name: String) : DelegatedInterface by delegatedProperties(name)
+
+interface DelegatedInterface {
+	var name: String
+}
