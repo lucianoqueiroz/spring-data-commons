@@ -18,18 +18,14 @@ package org.springframework.data.mapping.context;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import kotlin.jvm.JvmClassMappingKt;
+import kotlin.reflect.KMutableProperty;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
@@ -551,7 +547,32 @@ public abstract class AbstractMappingContext<E extends MutablePersistentEntity<?
 				return;
 			}
 
-			entity.addPersistentProperty(property);
+            /**
+             * 1. Checks if persistent property is a interface
+             * 2. Checks if persistent property is a kotlin type
+             */
+            if (property.getType().isInterface() && KotlinDetector.isKotlinType(property.getType())) {
+                /**
+                 * Get KClass to be able to read the KMutableProperty set by delegated interface
+                 */
+                Arrays.stream(JvmClassMappingKt.getKotlinClass(property.getType()).getMembers().toArray())
+                        .filter(field -> field instanceof KMutableProperty)
+                        .forEach(field -> {
+                            try {
+                                createAndRegisterProperty(
+                                        Property.of(
+                                                entity.getTypeInformation(),
+                                                field.getClass().getField(((KMutableProperty<?>) field).getName() //needs to convert KProperty to java.Field
+                                                )
+                                        )
+                                );
+                            } catch (NoSuchFieldException e) {
+//                                System.out.println(e.getMessage());
+                            }
+                        });
+            }
+
+            entity.addPersistentProperty(property);
 
 			if (property.isAssociation()) {
 				entity.addAssociation(property.getRequiredAssociation());
